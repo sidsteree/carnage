@@ -1,0 +1,2013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatHub - Connect & Communicate</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #36393f;
+            --bg-secondary: #2f3136;
+            --bg-tertiary: #202225;
+            --bg-modifier: #40444b;
+            --text-normal: #dcddde;
+            --text-muted: #72767d;
+            --text-link: #00b0f4;
+            --interactive-normal: #b9bbbe;
+            --interactive-hover: #dcddde;
+            --interactive-active: #fff;
+            --accent: #5865f2;
+            --accent-hover: #4752c4;
+            --danger: #ed4245;
+            --success: #3ba55d;
+            --warning: #faa61a;
+        }
+
+        .light-mode {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f2f3f5;
+            --bg-tertiary: #e3e5e8;
+            --bg-modifier: #e8eaed;
+            --text-normal: #2e3338;
+            --text-muted: #5c6066;
+            --text-link: #0068e0;
+            --interactive-normal: #4e5058;
+            --interactive-hover: #2e3338;
+            --interactive-active: #060607;
+            --accent: #5865f2;
+            --accent-hover: #4752c4;
+            --danger: #d83c3e;
+            --success: #2d7d46;
+            --warning: #e8a012;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-tertiary);
+            color: var(--text-normal);
+            overflow: hidden;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        /* Broadcast Banner */
+        #broadcastBanner {
+            display: none;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: 600;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10000;
+            animation: slideDown 0.5s ease;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        /* Auth Screen */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+            animation: gradientShift 10s ease infinite;
+            background-size: 200% 200%;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .auth-box {
+            background: var(--bg-primary);
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            width: 400px;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .auth-box h1 {
+            margin-bottom: 10px;
+            color: var(--text-normal);
+            font-size: 28px;
+        }
+
+        .auth-box p {
+            color: var(--text-muted);
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--bg-modifier);
+            border-radius: 6px;
+            color: var(--text-normal);
+            font-size: 16px;
+            transition: border 0.2s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(88,101,242,0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .auth-switch {
+            margin-top: 20px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .auth-switch a {
+            color: var(--text-link);
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .auth-switch a:hover {
+            text-decoration: underline;
+        }
+
+        /* Main App Layout */
+        .app-container {
+            display: none;
+            height: 100vh;
+            padding-top: 0;
+        }
+
+        .app-container.has-broadcast {
+            padding-top: 48px;
+        }
+
+        .main-wrapper {
+            display: flex;
+            height: 100%;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 72px;
+            background: var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            transition: all 0.3s ease;
+        }
+
+        .server-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-primary);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            color: var(--interactive-normal);
+            font-weight: 600;
+        }
+
+        .server-icon:hover {
+            border-radius: 16px;
+            background: var(--accent);
+            color: white;
+        }
+
+        .server-icon.active {
+            border-radius: 16px;
+            background: var(--accent);
+            color: white;
+        }
+
+        .server-icon::before {
+            content: '';
+            position: absolute;
+            left: -12px;
+            width: 0;
+            height: 8px;
+            background: white;
+            border-radius: 0 4px 4px 0;
+            transition: all 0.3s ease;
+        }
+
+        .server-icon.active::before {
+            width: 8px;
+            height: 40px;
+        }
+
+        .separator {
+            width: 32px;
+            height: 2px;
+            background: var(--bg-modifier);
+            margin: 8px 0;
+            border-radius: 1px;
+        }
+
+        /* Channel List */
+        .channel-list {
+            width: 240px;
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .channel-header {
+            height: 48px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--bg-modifier);
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .channel-header:hover {
+            background: var(--bg-modifier);
+        }
+
+        .channel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .channel-category {
+            margin-top: 16px;
+        }
+
+        .category-header {
+            padding: 8px 4px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+        }
+
+        .category-header:hover {
+            color: var(--text-normal);
+        }
+
+        .channel-item, .friend-item {
+            padding: 8px 12px;
+            margin: 2px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            color: var(--interactive-normal);
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .channel-item:hover, .friend-item:hover {
+            background: var(--bg-modifier);
+            color: var(--interactive-hover);
+        }
+
+        .channel-item.active, .friend-item.active {
+            background: var(--bg-modifier);
+            color: var(--interactive-active);
+        }
+
+        .channel-item::before {
+            content: '#';
+            margin-right: 8px;
+            font-weight: 600;
+        }
+
+        .friend-item .status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success);
+            margin-right: 12px;
+            border: 2px solid var(--bg-secondary);
+        }
+
+        .friend-item .status.offline {
+            background: var(--text-muted);
+        }
+
+        /* Chat Area */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+        }
+
+        .chat-header {
+            height: 48px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--bg-modifier);
+        }
+
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chat-header-left::before {
+            content: '#';
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 20px;
+        }
+
+        .chat-header-title {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .chat-header-right {
+            display: flex;
+            gap: 16px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: var(--interactive-normal);
+            cursor: pointer;
+            padding: 4px;
+            transition: color 0.2s ease;
+            font-size: 20px;
+        }
+
+        .icon-btn:hover {
+            color: var(--interactive-hover);
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .message {
+            display: flex;
+            padding: 8px 0;
+            animation: messageSlide 0.3s ease;
+        }
+
+        @keyframes messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message:hover {
+            background: var(--bg-modifier);
+            margin: 0 -16px;
+            padding: 8px 16px;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--accent);
+            margin-right: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            flex: 1;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .message-author {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .message-timestamp {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .message-text {
+            color: var(--text-normal);
+            line-height: 1.5;
+        }
+
+        .message-input-container {
+            padding: 16px;
+        }
+
+        .message-input {
+            background: var(--bg-modifier);
+            border: none;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-normal);
+            width: 100%;
+            font-size: 15px;
+            resize: none;
+            max-height: 150px;
+        }
+
+        .message-input:focus {
+            outline: none;
+        }
+
+        /* Member List */
+        .member-list {
+            width: 240px;
+            background: var(--bg-secondary);
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .member-category {
+            margin-bottom: 20px;
+        }
+
+        .member-category-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .member-item {
+            padding: 8px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            margin-bottom: 4px;
+        }
+
+        .member-item:hover {
+            background: var(--bg-modifier);
+        }
+
+        .member-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--accent);
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            font-size: 14px;
+            position: relative;
+        }
+
+        .member-status {
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success);
+            border: 2px solid var(--bg-secondary);
+        }
+
+        .member-status.offline {
+            background: var(--text-muted);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            width: 440px;
+            max-height: 80vh;
+            overflow: hidden;
+            animation: modalSlide 0.3s ease;
+        }
+
+        @keyframes modalSlide {
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--bg-modifier);
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+
+        .modal-content {
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            background: var(--bg-secondary);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .btn-secondary {
+            padding: 10px 20px;
+            background: transparent;
+            color: var(--text-normal);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-modifier);
+        }
+
+        .btn-primary {
+            padding: 10px 20px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: #c03638;
+        }
+
+        .friend-request-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--bg-modifier);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .friend-request-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .friend-request-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .small-btn {
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 4px;
+        }
+
+        /* Admin Panel */
+        .admin-section {
+            margin-bottom: 24px;
+        }
+
+        .admin-section h3 {
+            margin-bottom: 12px;
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+
+        .user-list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--bg-modifier);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .ban-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .select-group {
+            margin-bottom: 16px;
+        }
+
+        .select-group select {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--bg-modifier);
+            border-radius: 6px;
+            color: var(--text-normal);
+            font-size: 14px;
+        }
+
+        /* Welcome Screen */
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .welcome-screen h1 {
+            font-size: 32px;
+            margin-bottom: 16px;
+        }
+
+        .welcome-screen p {
+            color: var(--text-muted);
+            font-size: 16px;
+            margin-bottom: 32px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-modifier);
+            border-radius: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-primary);
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 9999;
+            animation: slideInRight 0.3s ease;
+            min-width: 300px;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .notification.success {
+            border-left: 4px solid var(--success);
+        }
+
+        .notification.error {
+            border-left: 4px solid var(--danger);
+        }
+
+        .notification.warning {
+            border-left: 4px solid var(--warning);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Group indicators */
+        .group-indicator {
+            font-size: 11px;
+            background: var(--accent);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+
+        /* Pending indicator */
+        .pending-count {
+            background: var(--danger);
+            color: white;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: auto;
+        }
+    </style>
+</head>
+<body>
+    <!-- Broadcast Banner -->
+    <div id="broadcastBanner"></div>
+
+    <!-- Auth Screen -->
+    <div id="authScreen" class="auth-container">
+        <div class="auth-box">
+            <div id="loginForm">
+                <h1>Welcome back!</h1>
+                <p>We're so excited to see you again!</p>
+                <div class="input-group">
+                    <label>Username</label>
+                    <input type="text" id="loginUsername" placeholder="Enter your username">
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" placeholder="Enter your password">
+                </div>
+                <button class="btn" onclick="login()">Log In</button>
+                <div class="auth-switch">
+                    Need an account? <a onclick="showRegister()">Register</a>
+                </div>
+            </div>
+
+            <div id="registerForm" class="hidden">
+                <h1>Create an account</h1>
+                <p>Join our amazing community!</p>
+                <div class="input-group">
+                    <label>Full Name</label>
+                    <input type="text" id="regFullName" placeholder="Enter your full name">
+                </div>
+                <div class="input-group">
+                    <label>Username</label>
+                    <input type="text" id="regUsername" placeholder="Choose a username">
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="regPassword" placeholder="Create a password">
+                </div>
+                <button class="btn" onclick="register()">Register</button>
+                <div class="auth-switch">
+                    Already have an account? <a onclick="showLogin()">Log In</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="appContainer" class="app-container">
+        <div class="main-wrapper">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="server-icon active" onclick="showFriendsView()" title="Friends">
+                    <span>👥</span>
+                </div>
+                <div class="separator"></div>
+                <div id="groupServerList"></div>
+                <div class="server-icon" onclick="openCreateGroupModal()" title="Create Group">
+                    <span>+</span>
+                </div>
+                <div style="flex: 1"></div>
+                <div class="server-icon" onclick="toggleTheme()" title="Toggle Theme">
+                    <span id="themeIcon">🌙</span>
+                </div>
+                <div class="server-icon" id="adminIcon" onclick="openAdminPanel()" title="Admin Panel" style="display: none;">
+                    <span>⚙️</span>
+                </div>
+                <div class="server-icon" onclick="logout()" title="Logout">
+                    <span>🚪</span>
+                </div>
+            </div>
+
+            <!-- Channel List -->
+            <div class="channel-list">
+                <div class="channel-header" onclick="toggleUserMenu()">
+                    <span id="currentUserDisplay">Friends</span>
+                    <span>▼</span>
+                </div>
+                <div class="channel-content">
+                    <div id="channelListContent">
+                        <div class="channel-category">
+                            <div class="category-header">
+                                <span>Friends</span>
+                                <span onclick="openAddFriendModal()" style="cursor: pointer;">+</span>
+                            </div>
+                            <div id="friendsList"></div>
+                        </div>
+                        <div class="channel-category">
+                            <div class="category-header" onclick="openFriendRequestsModal()">
+                                <span>Friend Requests</span>
+                                <span class="pending-count" id="pendingCount" style="display: none;">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="groupChannelContent" class="hidden">
+                        <div class="channel-category">
+                            <div class="category-header">
+                                <span>Text Channels</span>
+                            </div>
+                            <div class="channel-item active" onclick="selectGroupChannel()">
+                                <span>general</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Area -->
+            <div class="chat-area">
+                <div class="chat-header">
+                    <div class="chat-header-left">
+                        <span class="chat-header-title" id="chatTitle">Select a friend to start chatting</span>
+                    </div>
+                    <div class="chat-header-right">
+                        <button class="icon-btn" id="groupSettingsBtn" style="display: none;" onclick="openGroupSettings()">⚙️</button>
+                    </div>
+                </div>
+                <div class="messages-container" id="messagesContainer">
+                    <div class="welcome-screen">
+                        <h1>Welcome to ChatHub!</h1>
+                        <p>Add friends and start chatting, or create a group to connect with multiple people at once.</p>
+                    </div>
+                </div>
+                <div class="message-input-container" id="messageInputContainer" style="display: none;">
+                    <textarea class="message-input" id="messageInput" placeholder="Type a message..." rows="1" onkeypress="handleMessageKeypress(event)"></textarea>
+                </div>
+            </div>
+
+            <!-- Member List -->
+            <div class="member-list" id="memberList" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 id="modalTitle">Modal</h2>
+            </div>
+            <div class="modal-content" id="modalContent"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
+    <script>
+        // Data Storage
+        let currentUser = null;
+        let users = {};
+        let conversations = {};
+        let friendRequests = {};
+        let groups = {};
+        let adminActions = {};
+        let currentChat = null;
+        let currentChatType = null; // 'dm' or 'group'
+        let broadcastMessage = null;
+
+        // Initialize app
+        function init() {
+            loadData();
+            checkBans();
+            displayBroadcast();
+            
+            // Auto-resize textarea
+            const messageInput = document.getElementById('messageInput');
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+        }
+
+        // Data Persistence
+        function loadData() {
+            users = JSON.parse(localStorage.getItem('chatapp_users') || '{}');
+            conversations = JSON.parse(localStorage.getItem('chatapp_conversations') || '{}');
+            friendRequests = JSON.parse(localStorage.getItem('chatapp_friendRequests') || '{}');
+            groups = JSON.parse(localStorage.getItem('chatapp_groups') || '{}');
+            adminActions = JSON.parse(localStorage.getItem('chatapp_adminActions') || '{}');
+            broadcastMessage = JSON.parse(localStorage.getItem('chatapp_broadcast') || 'null');
+            
+            // Initialize admin account
+            if (!users['siddbanik']) {
+                users['siddbanik'] = {
+                    username: 'siddbanik',
+                    password: 'zurich12',
+                    fullName: 'Siddhanth Banik',
+                    friends: [],
+                    isAdmin: true
+                };
+                saveData();
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('chatapp_users', JSON.stringify(users));
+            localStorage.setItem('chatapp_conversations', JSON.stringify(conversations));
+            localStorage.setItem('chatapp_friendRequests', JSON.stringify(friendRequests));
+            localStorage.setItem('chatapp_groups', JSON.stringify(groups));
+            localStorage.setItem('chatapp_adminActions', JSON.stringify(adminActions));
+            if (broadcastMessage) {
+                localStorage.setItem('chatapp_broadcast', JSON.stringify(broadcastMessage));
+            } else {
+                localStorage.removeItem('chatapp_broadcast');
+            }
+        }
+
+        // Auth Functions
+        function showLogin() {
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+        }
+
+        function showRegister() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.remove('hidden');
+        }
+
+        function register() {
+            const fullName = document.getElementById('regFullName').value.trim();
+            const username = document.getElementById('regUsername').value.trim().toLowerCase();
+            const password = document.getElementById('regPassword').value;
+
+            if (!fullName || !username || !password) {
+                showNotification('Please fill in all fields', 'error');
+                return;
+            }
+
+            if (users[username]) {
+                showNotification('Username already exists', 'error');
+                return;
+            }
+
+            users[username] = {
+                username: username,
+                password: password,
+                fullName: fullName,
+                friends: [],
+                isAdmin: false
+            };
+
+            saveData();
+            showNotification('Account created successfully!', 'success');
+            showLogin();
+            document.getElementById('regFullName').value = '';
+            document.getElementById('regUsername').value = '';
+            document.getElementById('regPassword').value = '';
+        }
+
+        function login() {
+            const username = document.getElementById('loginUsername').value.trim().toLowerCase();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!users[username]) {
+                showNotification('User not found', 'error');
+                return;
+            }
+
+            if (users[username].password !== password) {
+                showNotification('Incorrect password', 'error');
+                return;
+            }
+
+            // Check if user is banned
+            if (adminActions[username]) {
+                const action = adminActions[username];
+                const now = Date.now();
+                
+                if (action.type === 'permanent_ban') {
+                    showNotification('You have been permanently banned from the platform', 'error');
+                    return;
+                }
+                
+                if (action.type === 'temporary_ban' && action.expiresAt > now) {
+                    const remainingTime = Math.ceil((action.expiresAt - now) / 60000);
+                    showNotification(`You are temporarily banned. Time remaining: ${remainingTime} minutes`, 'error');
+                    return;
+                }
+            }
+
+            currentUser = users[username];
+            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'block';
+            
+            if (currentUser.isAdmin) {
+                document.getElementById('adminIcon').style.display = 'flex';
+            }
+            
+            loadFriendsList();
+            loadGroupServers();
+            updatePendingCount();
+            showNotification(`Welcome back, ${currentUser.fullName}!`, 'success');
+        }
+
+        function logout() {
+            currentUser = null;
+            currentChat = null;
+            currentChatType = null;
+            document.getElementById('authScreen').style.display = 'flex';
+            document.getElementById('appContainer').style.display = 'none';
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('adminIcon').style.display = 'none';
+        }
+
+        function checkBans() {
+            const now = Date.now();
+            let updated = false;
+            
+            for (let username in adminActions) {
+                const action = adminActions[username];
+                if (action.type === 'temporary_ban' && action.expiresAt <= now) {
+                    delete adminActions[username];
+                    updated = true;
+                }
+            }
+            
+            if (updated) {
+                saveData();
+            }
+        }
+
+        // Broadcast Functions
+        function displayBroadcast() {
+            const banner = document.getElementById('broadcastBanner');
+            const appContainer = document.getElementById('appContainer');
+            
+            if (broadcastMessage && broadcastMessage.expiresAt > Date.now()) {
+                banner.textContent = broadcastMessage.message;
+                banner.style.display = 'block';
+                appContainer.classList.add('has-broadcast');
+            } else {
+                banner.style.display = 'none';
+                appContainer.classList.remove('has-broadcast');
+                if (broadcastMessage && broadcastMessage.expiresAt <= Date.now()) {
+                    broadcastMessage = null;
+                    saveData();
+                }
+            }
+        }
+
+        // Friends Functions
+        function loadFriendsList() {
+            const friendsList = document.getElementById('friendsList');
+            friendsList.innerHTML = '';
+
+            if (!currentUser.friends || currentUser.friends.length === 0) {
+                friendsList.innerHTML = '<div style="padding: 12px; color: var(--text-muted); font-size: 13px;">No friends yet. Add some!</div>';
+                return;
+            }
+
+            currentUser.friends.forEach(friendUsername => {
+                const friend = users[friendUsername];
+                if (friend) {
+                    const item = document.createElement('div');
+                    item.className = 'friend-item';
+                    item.onclick = () => openDirectMessage(friendUsername);
+                    item.innerHTML = `
+                        <div class="status"></div>
+                        <span>${friend.fullName}</span>
+                    `;
+                    friendsList.appendChild(item);
+                }
+            });
+        }
+
+        function openAddFriendModal() {
+            document.getElementById('modalTitle').textContent = 'Add Friend';
+            document.getElementById('modalContent').innerHTML = `
+                <div class="input-group">
+                    <label>Username</label>
+                    <input type="text" id="friendUsername" placeholder="Enter username">
+                </div>
+            `;
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" onclick="sendFriendRequest()">Send Request</button>
+            `;
+            document.getElementById('modalOverlay').style.display = 'flex';
+        }
+
+        function sendFriendRequest() {
+            const username = document.getElementById('friendUsername').value.trim().toLowerCase();
+            
+            if (!username) {
+                showNotification('Please enter a username', 'error');
+                return;
+            }
+
+            if (username === currentUser.username) {
+                showNotification('You cannot add yourself', 'error');
+                return;
+            }
+
+            if (!users[username]) {
+                showNotification('User not found', 'error');
+                return;
+            }
+
+            if (currentUser.friends.includes(username)) {
+                showNotification('Already friends with this user', 'error');
+                return;
+            }
+
+            if (!friendRequests[username]) {
+                friendRequests[username] = [];
+            }
+
+            if (friendRequests[username].find(req => req.from === currentUser.username)) {
+                showNotification('Friend request already sent', 'error');
+                return;
+            }
+
+            friendRequests[username].push({
+                from: currentUser.username,
+                timestamp: Date.now()
+            });
+
+            saveData();
+            closeModal();
+            showNotification('Friend request sent!', 'success');
+        }
+
+        function openFriendRequestsModal() {
+            const requests = friendRequests[currentUser.username] || [];
+            
+            document.getElementById('modalTitle').textContent = 'Friend Requests';
+            
+            if (requests.length === 0) {
+                document.getElementById('modalContent').innerHTML = '<p style="color: var(--text-muted);">No pending friend requests</p>';
+            } else {
+                let html = '';
+                requests.forEach((req, index) => {
+                    const fromUser = users[req.from];
+                    html += `
+                        <div class="friend-request-item">
+                            <div class="friend-request-info">
+                                <div class="member-avatar">${fromUser.fullName[0].toUpperCase()}</div>
+                                <div>
+                                    <div style="font-weight: 600;">${fromUser.fullName}</div>
+                                    <div style="font-size: 13px; color: var(--text-muted);">@${fromUser.username}</div>
+                                </div>
+                            </div>
+                            <div class="friend-request-actions">
+                                <button class="btn-primary small-btn" onclick="acceptFriendRequest('${req.from}')">Accept</button>
+                                <button class="btn-danger small-btn" onclick="rejectFriendRequest('${req.from}')">Decline</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                document.getElementById('modalContent').innerHTML = html;
+            }
+            
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-secondary" onclick="closeModal()">Close</button>
+            `;
+            document.getElementById('modalOverlay').style.display = 'flex';
+        }
+
+        function acceptFriendRequest(fromUsername) {
+            if (!currentUser.friends.includes(fromUsername)) {
+                currentUser.friends.push(fromUsername);
+            }
+            if (!users[fromUsername].friends.includes(currentUser.username)) {
+                users[fromUsername].friends.push(currentUser.username);
+            }
+
+            friendRequests[currentUser.username] = friendRequests[currentUser.username].filter(
+                req => req.from !== fromUsername
+            );
+
+            saveData();
+            loadFriendsList();
+            updatePendingCount();
+            openFriendRequestsModal();
+            showNotification('Friend request accepted!', 'success');
+        }
+
+        function rejectFriendRequest(fromUsername) {
+            friendRequests[currentUser.username] = friendRequests[currentUser.username].filter(
+                req => req.from !== fromUsername
+            );
+
+            saveData();
+            updatePendingCount();
+            openFriendRequestsModal();
+            showNotification('Friend request declined', 'success');
+        }
+
+        function updatePendingCount() {
+            const requests = friendRequests[currentUser.username] || [];
+            const countEl = document.getElementById('pendingCount');
+            
+            if (requests.length > 0) {
+                countEl.textContent = requests.length;
+                countEl.style.display = 'inline-block';
+            } else {
+                countEl.style.display = 'none';
+            }
+        }
+
+        // Chat Functions
+        function openDirectMessage(username) {
+            currentChat = username;
+            currentChatType = 'dm';
+            
+            const friend = users[username];
+            document.getElementById('chatTitle').textContent = friend.fullName;
+            document.getElementById('messageInputContainer').style.display = 'block';
+            document.getElementById('memberList').style.display = 'none';
+            document.getElementById('groupSettingsBtn').style.display = 'none';
+            document.getElementById('channelListContent').classList.remove('hidden');
+            document.getElementById('groupChannelContent').classList.add('hidden');
+            
+            // Highlight active friend
+            document.querySelectorAll('.friend-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.closest('.friend-item').classList.add('active');
+            
+            loadMessages();
+        }
+
+        function loadMessages() {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+
+            let messages = [];
+            
+            if (currentChatType === 'dm') {
+                const convKey = [currentUser.username, currentChat].sort().join('_');
+                messages = conversations[convKey] || [];
+            } else if (currentChatType === 'group') {
+                messages = groups[currentChat].messages || [];
+            }
+
+            if (messages.length === 0) {
+                container.innerHTML = '<div class="welcome-screen"><p>No messages yet. Start the conversation!</p></div>';
+                return;
+            }
+
+            messages.forEach(msg => {
+                const sender = users[msg.from];
+                const messageEl = document.createElement('div');
+                messageEl.className = 'message';
+                messageEl.innerHTML = `
+                    <div class="message-avatar">${sender.fullName[0].toUpperCase()}</div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-author">${sender.fullName}</span>
+                            <span class="message-timestamp">${formatTime(msg.timestamp)}</span>
+                        </div>
+                        <div class="message-text">${escapeHtml(msg.text)}</div>
+                    </div>
+                `;
+                container.appendChild(messageEl);
+            });
+
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function handleMessageKeypress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+
+            if (!text || !currentChat) return;
+
+            const message = {
+                from: currentUser.username,
+                text: text,
+                timestamp: Date.now()
+            };
+
+            if (currentChatType === 'dm') {
+                const convKey = [currentUser.username, currentChat].sort().join('_');
+                if (!conversations[convKey]) {
+                    conversations[convKey] = [];
+                }
+                conversations[convKey].push(message);
+            } else if (currentChatType === 'group') {
+                if (!groups[currentChat].messages) {
+                    groups[currentChat].messages = [];
+                }
+                groups[currentChat].messages.push(message);
+            }
+
+            saveData();
+            input.value = '';
+            input.style.height = 'auto';
+            loadMessages();
+        }
+
+        // Group Functions
+        function loadGroupServers() {
+            const container = document.getElementById('groupServerList');
+            container.innerHTML = '';
+
+            for (let groupId in groups) {
+                const group = groups[groupId];
+                if (group.members.includes(currentUser.username)) {
+                    const icon = document.createElement('div');
+                    icon.className = 'server-icon';
+                    icon.title = group.name;
+                    icon.textContent = group.name[0].toUpperCase();
+                    icon.onclick = () => openGroup(groupId);
+                    container.appendChild(icon);
+                }
+            }
+        }
+
+        function openCreateGroupModal() {
+            document.getElementById('modalTitle').textContent = 'Create Group';
+            
+            let friendsHtml = '';
+            currentUser.friends.forEach(friendUsername => {
+                const friend = users[friendUsername];
+                friendsHtml += `
+                    <div style="margin-bottom: 8px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" value="${friend.username}" style="margin-right: 12px;">
+                            <span>${friend.fullName}</span>
+                        </label>
+                    </div>
+                `;
+            });
+
+            document.getElementById('modalContent').innerHTML = `
+                <div class="input-group">
+                    <label>Group Name</label>
+                    <input type="text" id="groupName" placeholder="Enter group name">
+                </div>
+                <div class="input-group">
+                    <label>Select Friends (Max 4 additional members)</label>
+                    <div id="friendCheckboxes" style="max-height: 200px; overflow-y: auto;">
+                        ${friendsHtml || '<p style="color: var(--text-muted);">You need friends to create a group</p>'}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" onclick="createGroup()">Create Group</button>
+            `;
+            
+            document.getElementById('modalOverlay').style.display = 'flex';
+        }
+
+        function createGroup() {
+            const groupName = document.getElementById('groupName').value.trim();
+            const checkboxes = document.querySelectorAll('#friendCheckboxes input[type="checkbox"]:checked');
+            
+            if (!groupName) {
+                showNotification('Please enter a group name', 'error');
+                return;
+            }
+
+            if (checkboxes.length === 0) {
+                showNotification('Please select at least one friend', 'error');
+                return;
+            }
+
+            if (checkboxes.length > 4) {
+                showNotification('Maximum 5 members per group (including you)', 'error');
+                return;
+            }
+
+            const members = [currentUser.username];
+            checkboxes.forEach(cb => members.push(cb.value));
+
+            const groupId = 'group_' + Date.now();
+            groups[groupId] = {
+                id: groupId,
+                name: groupName,
+                creator: currentUser.username,
+                members: members,
+                messages: [],
+                createdAt: Date.now()
+            };
+
+            saveData();
+            closeModal();
+            loadGroupServers();
+            showNotification('Group created successfully!', 'success');
+        }
+
+        function openGroup(groupId) {
+            currentChat = groupId;
+            currentChatType = 'group';
+            const group = groups[groupId];
+
+            document.getElementById('chatTitle').textContent = group.name;
+            document.getElementById('messageInputContainer').style.display = 'block';
+            document.getElementById('memberList').style.display = 'block';
+            document.getElementById('groupSettingsBtn').style.display = 'block';
+            document.getElementById('channelListContent').classList.add('hidden');
+            document.getElementById('groupChannelContent').classList.remove('hidden');
+
+            // Update server icons
+            document.querySelectorAll('.sidebar .server-icon').forEach(icon => {
+                icon.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            loadMessages();
+            loadGroupMembers(group);
+        }
+
+        function selectGroupChannel() {
+            loadMessages();
+        }
+
+        function loadGroupMembers(group) {
+            const memberList = document.getElementById('memberList');
+            
+            let html = '<div class="member-category">';
+            html += '<div class="member-category-header">Members — ' + group.members.length + '</div>';
+            
+            group.members.forEach(memberUsername => {
+                const member = users[memberUsername];
+                const isCreator = memberUsername === group.creator;
+                html += `
+                    <div class="member-item">
+                        <div class="member-avatar">
+                            ${member.fullName[0].toUpperCase()}
+                            <div class="status"></div>
+                        </div>
+                        <div>
+                            <div style="font-weight: 500;">${member.fullName}</div>
+                            ${isCreator ? '<div style="font-size: 11px; color: var(--accent);">Creator</div>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            memberList.innerHTML = html;
+        }
+
+        function openGroupSettings() {
+            const group = groups[currentChat];
+            
+            document.getElementById('modalTitle').textContent = 'Group Settings';
+            
+            let membersHtml = '';
+            group.members.forEach(memberUsername => {
+                const member = users[memberUsername];
+                const isCreator = memberUsername === group.creator;
+                const canRemove = currentUser.username === group.creator && memberUsername !== currentUser.username;
+                
+                membersHtml += `
+                    <div class="user-list-item">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="member-avatar" style="width: 32px; height: 32px; font-size: 14px;">
+                                ${member.fullName[0].toUpperCase()}
+                            </div>
+                            <div>
+                                <div style="font-weight: 500;">${member.fullName}</div>
+                                <div style="font-size: 13px; color: var(--text-muted);">@${member.username}</div>
+                            </div>
+                            ${isCreator ? '<span class="group-indicator">Creator</span>' : ''}
+                        </div>
+                        ${canRemove ? `<button class="btn-danger small-btn" onclick="removeGroupMember('${memberUsername}')">Remove</button>` : ''}
+                    </div>
+                `;
+            });
+
+            document.getElementById('modalContent').innerHTML = `
+                <div class="admin-section">
+                    <h3>Members</h3>
+                    ${membersHtml}
+                </div>
+                ${currentUser.username === group.creator && group.members.length < 5 ? `
+                <div class="admin-section">
+                    <h3>Add Members</h3>
+                    <button class="btn-primary" onclick="openAddGroupMemberModal()">Add Friend to Group</button>
+                </div>
+                ` : ''}
+                ${currentUser.username === group.creator ? `
+                <div class="admin-section">
+                    <h3>Danger Zone</h3>
+                    <button class="btn-danger" onclick="deleteGroup()">Delete Group</button>
+                </div>
+                ` : `
+                <div class="admin-section">
+                    <h3>Leave Group</h3>
+                    <button class="btn-danger" onclick="leaveGroup()">Leave Group</button>
+                </div>
+                `}
+            `;
+
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-secondary" onclick="closeModal()">Close</button>
+            `;
+            
+            document.getElementById('modalOverlay').style.display = 'flex';
+        }
+
+        function openAddGroupMemberModal() {
+            const group = groups[currentChat];
+            
+            let friendsHtml = '';
+            currentUser.friends.forEach(friendUsername => {
+                if (!group.members.includes(friendUsername)) {
+                    const friend = users[friendUsername];
+                    friendsHtml += `
+                        <div class="user-list-item" style="cursor: pointer;" onclick="addGroupMember('${friendUsername}')">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div class="member-avatar" style="width: 32px; height: 32px; font-size: 14px;">
+                                    ${friend.fullName[0].toUpperCase()}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 500;">${friend.fullName}</div>
+                                    <div style="font-size: 13px; color: var(--text-muted);">@${friend.username}</div>
+                                </div>
+                            </div>
+                            <button class="btn-primary small-btn">Add</button>
+                        </div>
+                    `;
+                }
+            });
+
+            document.getElementById('modalTitle').textContent = 'Add Member';
+            document.getElementById('modalContent').innerHTML = friendsHtml || '<p style="color: var(--text-muted);">No available friends to add</p>';
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-secondary" onclick="openGroupSettings()">Back</button>
+            `;
+            document.getElementById('modalOverlay').style.display = 'flex';
+        }
+
+        function addGroupMember(username) {
+            const group = groups[currentChat];
+            
+            if (group.members.length >= 5) {
+                showNotification('Group is full (max 5 members)', 'error');
+                return;
+            }
+
+            group.members.push(username);
+            saveData();
+            showNotification('Member added successfully!', 'success');
+            loadGroupMembers(group);
+            openGroupSettings();
+        }
+
+        function removeGroupMember(username) {
+            const group = groups[currentChat];
+            group.members = group.members.filter(m => m !== username);
+            saveData();
+            showNotification('Member removed', 'success');
+            loadGroupMembers(group);
+            openGroupSettings();
+        }
+
+        function leaveGroup() {
+            if (confirm('Are you sure you want to leave this group?')) {
+                const group = groups[currentChat];
+                group.members = group.members.filter(m => m !== currentUser.username);
+                
+                if (group.members.length === 0) {
+                    delete groups[currentChat];
+                }
+                
+                saveData();
+                closeModal();
+                loadGroupServers();
+                showFriendsView();
+                showNotification('You left the group', 'success');
+            }
+        }
+
+        function deleteGroup() {
+            if (confirm('Are you sure you want to delete this group? This cannot be undone!')) {
+                delete groups[currentChat];
+                saveData();
+                closeModal();
+                loadGroupServers();
+                showFriendsView();
+                showNotification('Group deleted', 'success');
+            }
+        }
+
+        function showFriendsView() {
+            currentChat = null;
+            currentChatType = null;
+            document.getElementById('chatTitle').textContent = 'Select a friend to start chatting';
+            document.getElementById('messageInputContainer').style.display = 'none';
+            document.getElementById('memberList').style.display = 'none';
+            document.getElementById('groupSettingsBtn').style.display = 'none';
+            document.getElementById('channelListContent').classList.remove('hidden');
+            document.getElementById('groupChannelContent').classList.add('hidden');
+            
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = `
+                <div class="welcome-screen">
+                    <h1>Welcome to ChatHub!</h1>
+                    <p>Add friends and start chatting, or create a group to connect with multiple people at once.</p>
+                </div>
+            `;
+
+            // Update server icons
+            document.querySelectorAll('.sidebar .server-icon').forEach(icon => {
+                icon.classList.remove('active');
+            });
+            document.querySelector('.sidebar .server-icon').classList.add('active');
+        }
+
+        // Admin Functions
+        function openAdminPanel() {
+            if (!currentUser.isAdmin) return;
+
+            document.getElementById('modalTitle').textContent = 'Admin Panel';
+            
+            let usersHtml = '';
+            for (let username in users) {
+                if (username !== 'siddbanik') {
+                    const user = users[username];
+                    const action = adminActions[username];
+                    let statusText = '';
+                    
+                    if (action) {
+                        if (action.type === 'permanent_ban') {
+                            statusText = '<span style="color: var(--danger); font-size: 12px;">Permanently Banned</span>';
+                        } else if (action.type === 'temporary_ban') {
+                            const remaining = Math.ceil((action.expiresAt - Date.now()) / 60000);
+                            if (remaining > 0) {
+                                statusText = `<span style="color: var(--warning); font-size: 12px;">Banned (${remaining}m left)</span>`;
+                            }
+                        } else if (action.type === 'warning') {
+                            statusText = '<span style="color: var(--warning); font-size: 12px;">Warned</span>';
+                        }
+                    }
+                    
+                    usersHtml += `
+                        <div class="user-list-item">
+                            <div>
+                                <div style="font-weight: 500;">${user.fullName}</div>
+                                <div style="font-size: 13px; color: var(--text-muted);">@${username}</div>
+                                ${statusText}
+                            </div>
+                            <div class="ban-controls">
+                                <button class="btn-primary small-btn" onclick="warnUser('${username}')">Warn</button>
+                                <button class="btn-danger small-btn" onclick="openTempBanModal('${username}')">Temp Ban</button>
+                                <button class="btn-danger small-btn" onclick="permanentBanUser('${username}')">Perm Ban</button>
+                                ${action ? `<button class="btn-secondary small-btn" onclick="unbanUser('${username}')">Unban</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            document.getElementById('modalContent').innerHTML = `
+                <div class="admin-section">
+                    <h3>Broadcast Message</h3>
+                    <div class="input-group">
+                        <label>Message</label>
+                        <input type="text" id="broadcastText" placeholder="Enter broadcast message">
+                    </div>
+                    <div class="select-group">
+                        <label>Duration</label>
+                        <select id="broadcastDuration">
+                            <option value="3600000">1 Hour</option>
+                            <option value="21600000">6 Hours</option>
+                            <option value="86400000">1 Day</option>
+                        <option value="259200000">3 Days</option>
+                        <option value="604800000">1 Week</option>
+                    </select>
+                </div>
+            `;
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-secondary" onclick="openAdminPanel()">Back</button>
+                <button class="btn-danger" onclick="tempBanUser('${username}')">Ban User</button>
+            `;
+            document.getElementById('modalOverlay').style.display = 'flex';
+        }
+
+        function tempBanUser(username) {
+            const duration = parseInt(document.getElementById('banDuration').value);
+            adminActions[username] = {
+                type: 'temporary_ban',
+                expiresAt: Date.now() + duration,
+                timestamp: Date.now()
+            };
+            saveData();
+            showNotification(`${users[username].fullName} has been temporarily banned`, 'success');
+            openAdminPanel();
+        }
+
+        function permanentBanUser(username) {
+            if (confirm(`Are you sure you want to permanently ban ${users[username].fullName}?`)) {
+                adminActions[username] = {
+                    type: 'permanent_ban',
+                    timestamp: Date.now()
+                };
+                saveData();
+                showNotification(`${users[username].fullName} has been permanently banned`, 'success');
+                openAdminPanel();
+            }
+        }
+
+        function unbanUser(username) {
+            delete adminActions[username];
+            saveData();
+            showNotification(`${users[username].fullName} has been unbanned`, 'success');
+            openAdminPanel();
+        }
+
+        function setBroadcast() {
+            const message = document.getElementById('broadcastText').value.trim();
+            const duration = parseInt(document.getElementById('broadcastDuration').value);
+            
+            if (!message) {
+                showNotification('Please enter a message', 'error');
+                return;
+            }
+
+            broadcastMessage = {
+                message: message,
+                expiresAt: Date.now() + duration,
+                timestamp: Date.now()
+            };
+
+            saveData();
+            displayBroadcast();
+            showNotification('Broadcast message set!', 'success');
+            closeModal();
+        }
+
+        function clearBroadcast() {
+            broadcastMessage = null;
+            saveData();
+            displayBroadcast();
+            showNotification('Broadcast cleared', 'success');
+            closeModal();
+        }
+
+        // Utility Functions
+        function closeModal() {
+            document.getElementById('modalOverlay').style.display = 'none';
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.animation = 'slideInRight 0.3s ease reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+            
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + 
+                   ' at ' + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-mode');
+            const icon = document.getElementById('themeIcon');
+            icon.textContent = document.body.classList.contains('light-mode') ? '☀️' : '🌙';
+            localStorage.setItem('chatapp_theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+        }
+
+        function toggleUserMenu() {
+            // Could expand this for a dropdown menu
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('chatapp_theme');
+        if (savedTheme === 'light') {
+            document.body.classList.add('light-mode');
+            document.getElementById('themeIcon').textContent = '☀️';
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', init);
+
+        // Periodically check for expired bans
+        setInterval(checkBans, 60000);
+        setInterval(displayBroadcast, 60000);
+    </script>
+</body>
+</html>
+                            <option value="604800000">1 Week</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" onclick="setBroadcast()">Set Broadcast</button>
+                    ${broadcastMessage ? '<button class="btn-danger" onclick="clearBroadcast()">Clear Broadcast</button>' : ''}
+                </div>
+                <div class="admin-section">
+                    <h3>User Management</h3>
+                    ${usersHtml}
+                </div>
+            `;
+
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-secondary" onclick="closeModal()">Close</button>
+            `;
+            
+            document.getElementById('modalOverlay').style.display = 'flex';
+        }
+
+        function warnUser(username) {
+            adminActions[username] = {
+                type: 'warning',
+                timestamp: Date.now()
+            };
+            saveData();
+            showNotification(`${users[username].fullName} has been warned`, 'success');
+            openAdminPanel();
+        }
+
+        function openTempBanModal(username) {
+            document.getElementById('modalTitle').textContent = 'Temporary Ban';
+            document.getElementById('modalContent').innerHTML = `
+                <p>Ban <strong>${users[username].fullName}</strong> (@${username})</p>
+                <div class="select-group">
+                    <label>Duration</label>
+                    <select id="banDuration">
+                        <option value="3600000">1 Hour</option>
+                        <option value="10800000">3 Hours</option>
+                        <option value="21600000">6 Hours</option>
+                        <option value="43200000">12 Hours</option>
+                        <option value="86400000">1 Day</option>
