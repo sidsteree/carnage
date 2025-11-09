@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CarnageChat - Connect & Communicate</title>
+    <title>ChatHub - Connect & Communicate</title>
     <style>
         * {
             margin: 0;
@@ -1017,7 +1017,7 @@
                 </div>
                 <div class="messages-container" id="messagesContainer">
                     <div class="welcome-screen">
-                        <h1>Welcome to CarnageChat!</h1>
+                        <h1>Welcome to ChatHub!</h1>
                         <p>Add friends and start chatting, or create a group to connect with multiple people at once.</p>
                     </div>
                 </div>
@@ -1247,6 +1247,16 @@
         }
 
         function checkForNewMessages() {
+            if (!currentChat || !currentChatType) return;
+            
+            // Reload data from localStorage to get latest messages
+            const freshConversations = JSON.parse(localStorage.getItem('chatapp_conversations') || '{}');
+            const freshGroups = JSON.parse(localStorage.getItem('chatapp_groups') || '{}');
+            
+            // Update our local data
+            conversations = freshConversations;
+            groups = freshGroups;
+            
             let messages = [];
             
             if (currentChatType === 'dm') {
@@ -1254,17 +1264,6 @@
                 messages = conversations[convKey] || [];
             } else if (currentChatType === 'group') {
                 messages = groups[currentChat]?.messages || [];
-            }
-
-            // Reload data from localStorage to get latest messages
-            const freshData = JSON.parse(localStorage.getItem('chatapp_conversations') || '{}');
-            const freshGroups = JSON.parse(localStorage.getItem('chatapp_groups') || '{}');
-            
-            if (currentChatType === 'dm') {
-                const convKey = [currentUser.username, currentChat].sort().join('_');
-                messages = freshData[convKey] || [];
-            } else if (currentChatType === 'group') {
-                messages = freshGroups[currentChat]?.messages || [];
             }
 
             if (messages.length !== lastMessageCount) {
@@ -1276,7 +1275,19 @@
                     }
                 }
                 lastMessageCount = messages.length;
+                
+                // Scroll to bottom before loading messages
+                const container = document.getElementById('messagesContainer');
+                const shouldScroll = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
+                
                 loadMessages();
+                
+                // Auto-scroll to bottom if user was already at bottom
+                if (shouldScroll) {
+                    setTimeout(() => {
+                        container.scrollTop = container.scrollHeight;
+                    }, 50);
+                }
             }
         }
 
@@ -1900,7 +1911,7 @@
             const container = document.getElementById('messagesContainer');
             container.innerHTML = `
                 <div class="welcome-screen">
-                    <h1>Welcome to CarnageChat!</h1>
+                    <h1>Welcome to ChatHub!</h1>
                     <p>Add friends and start chatting, or create a group to connect with multiple people at once.</p>
                 </div>
             `;
