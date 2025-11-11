@@ -1042,34 +1042,34 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
+        // Supabase Configuration
+        const SUPABASE_URL = 'https://hbngtimablozyrwzgwqk.supabase.co';
+        // Get your anon key from: Supabase Dashboard > Project Settings > API
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhibmd0aW1hYmxvenlyb3pnd3FrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE5ODkwMzEsImV4cCI6MjA0NzU2NTAzMX0.Bk7VCQmDqhRXrwgQY1iSBSbx-Rpc7sT3VgBNhL7JKMY';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         // Data Storage
         let currentUser = null;
-        let users = {};
-        let conversations = {};
-        let friendRequests = {};
-        let groups = {};
-        let adminActions = {};
         let currentChat = null;
-        let currentChatType = null; // 'dm' or 'group'
+        let currentChatType = null;
         let broadcastMessage = null;
         let messageCheckInterval = null;
         let lastMessageCount = 0;
 
         // Initialize app
-        function init() {
-            loadData();
+        async function init() {
+            await loadData();
             checkBans();
             displayBroadcast();
             
-            // Auto-resize textarea
             const messageInput = document.getElementById('messageInput');
             messageInput.addEventListener('input', function() {
                 this.style.height = 'auto';
                 this.style.height = (this.scrollHeight) + 'px';
             });
 
-            // Setup admin icon click
             const adminIcon = document.getElementById('adminIcon');
             if (adminIcon) {
                 adminIcon.addEventListener('click', function(e) {
@@ -1079,50 +1079,53 @@
             }
         }
 
-        // Data Persistence
-        function loadData() {
-            users = JSON.parse(localStorage.getItem('chatapp_users') || '{}');
-            conversations = JSON.parse(localStorage.getItem('chatapp_conversations') || '{}');
-            friendRequests = JSON.parse(localStorage.getItem('chatapp_friendRequests') || '{}');
-            groups = JSON.parse(localStorage.getItem('chatapp_groups') || '{}');
-            adminActions = JSON.parse(localStorage.getItem('chatapp_adminActions') || '{}');
-            broadcastMessage = JSON.parse(localStorage.getItem('chatapp_broadcast') || 'null');
-            
-            // Initialize admin account
-            if (!users['siddbanik']) {
-                users['siddbanik'] = {
-                    username: 'siddbanik',
-                    password: 'zurich12',
-                    fullName: 'Siddhanth Banik',
-                    friends: [],
-                    isAdmin: true,
-                    profileImage: null,
-                    notificationsEnabled: true
-                };
-                saveData();
-            }
+        // Real-time subscriptions
+        function setupRealtimeSubscriptions() {
+            if (!currentUser) return;
 
-            // Ensure all users have notification settings
-            for (let username in users) {
-                if (users[username].notificationsEnabled === undefined) {
-                    users[username].notificationsEnabled = true;
-                }
-                if (users[username].profileImage === undefined) {
-                    users[username].profileImage = null;
-                }
-            }
+            supabase
+                .channel('conversations')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+                    if (currentChat && currentChatType === 'dm') {
+                        checkForNewMessages();
+                    }
+                })
+                .subscribe();
+
+            supabase
+                .channel('groups')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => {
+                    if (currentChat && currentChatType === 'group') {
+                        checkForNewMessages();
+                    }
+                })
+                .subscribe();
+
+            supabase
+                .channel('friend_requests')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_requests' }, () => {
+                    updatePendingCount();
+                })
+                .subscribe();
         }
 
-        function saveData() {
-            localStorage.setItem('chatapp_users', JSON.stringify(users));
-            localStorage.setItem('chatapp_conversations', JSON.stringify(conversations));
-            localStorage.setItem('chatapp_friendRequests', JSON.stringify(friendRequests));
-            localStorage.setItem('chatapp_groups', JSON.stringify(groups));
-            localStorage.setItem('chatapp_adminActions', JSON.stringify(adminActions));
-            if (broadcastMessage) {
-                localStorage.setItem('chatapp_broadcast', JSON.stringify(broadcastMessage));
-            } else {
-                localStorage.removeItem('chatapp_broadcast');
+        async function loadData() {
+            try {
+                const { data: broadcasts } = await supabase
+                    .from('broadcasts')
+                    .select('*')
+                    .eq('active', true)
+                    .single();
+                
+                if (broadcasts) {
+                    broadcastMessage = {
+                        message: broadcasts.message,
+                        expiresAt: broadcasts.expires_at,
+                        timestamp: broadcasts.timestamp
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
             }
         }
 
@@ -1137,7 +1140,7 @@
             document.getElementById('registerForm').classList.remove('hidden');
         }
 
-        function register() {
+        async function register() {
             const fullName = document.getElementById('regFullName').value.trim();
             const username = document.getElementById('regUsername').value.trim().toLowerCase();
             const password = document.getElementById('regPassword').value;
@@ -1147,20 +1150,33 @@
                 return;
             }
 
-            if (users[username]) {
+            const { data: existingUser } = await supabase
+                .from('users')
+                .select('username')
+                .eq('username', username)
+                .single();
+
+            if (existingUser) {
                 showNotification('Username already exists', 'error');
                 return;
             }
 
-            users[username] = {
-                username: username,
-                password: password,
-                fullName: fullName,
-                friends: [],
-                isAdmin: false
-            };
+            const { error } = await supabase
+                .from('users')
+                .insert([{
+                    username: username,
+                    password: password,
+                    full_name: fullName,
+                    friends: [],
+                    is_admin: false,
+                    notifications_enabled: true
+                }]);
 
-            saveData();
+            if (error) {
+                showNotification('Error creating account: ' + error.message, 'error');
+                return;
+            }
+
             showNotification('Account created successfully!', 'success');
             showLogin();
             document.getElementById('regFullName').value = '';
@@ -1168,38 +1184,57 @@
             document.getElementById('regPassword').value = '';
         }
 
-        function login() {
+        async function login() {
             const username = document.getElementById('loginUsername').value.trim().toLowerCase();
             const password = document.getElementById('loginPassword').value;
 
-            if (!users[username]) {
+            const { data: user, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('username', username)
+                .single();
+
+            if (error || !user) {
                 showNotification('User not found', 'error');
                 return;
             }
 
-            if (users[username].password !== password) {
+            if (user.password !== password) {
                 showNotification('Incorrect password', 'error');
                 return;
             }
 
-            // Check if user is banned
-            if (adminActions[username]) {
-                const action = adminActions[username];
+            const { data: action } = await supabase
+                .from('admin_actions')
+                .select('*')
+                .eq('username', username)
+                .single();
+            
+            if (action) {
                 const now = Date.now();
                 
-                if (action.type === 'permanent_ban') {
+                if (action.action_type === 'permanent_ban') {
                     showNotification('You have been permanently banned from the platform', 'error');
                     return;
                 }
                 
-                if (action.type === 'temporary_ban' && action.expiresAt > now) {
-                    const remainingTime = Math.ceil((action.expiresAt - now) / 60000);
+                if (action.action_type === 'temporary_ban' && action.expires_at > now) {
+                    const remainingTime = Math.ceil((action.expires_at - now) / 60000);
                     showNotification(`You are temporarily banned. Time remaining: ${remainingTime} minutes`, 'error');
                     return;
                 }
             }
 
-            currentUser = users[username];
+            currentUser = {
+                username: user.username,
+                password: user.password,
+                fullName: user.full_name,
+                friends: user.friends || [],
+                isAdmin: user.is_admin,
+                profileImage: user.profile_image,
+                notificationsEnabled: user.notifications_enabled
+            };
+
             document.getElementById('authScreen').style.display = 'none';
             document.getElementById('appContainer').style.display = 'block';
             
@@ -1207,10 +1242,11 @@
                 document.getElementById('adminIcon').style.display = 'flex';
             }
             
-            loadFriendsList();
-            loadGroupServers();
-            updatePendingCount();
+            await loadFriendsList();
+            await loadGroupServers();
+            await updatePendingCount();
             startMessagePolling();
+            setupRealtimeSubscriptions();
             showNotification(`Welcome back, ${currentUser.fullName}!`, 'success');
         }
 
@@ -1226,12 +1262,8 @@
             document.getElementById('adminIcon').style.display = 'none';
         }
 
-        // Real-time message polling
         function startMessagePolling() {
-            // Stop any existing interval
             stopMessagePolling();
-            
-            // Check for new messages every 500ms
             messageCheckInterval = setInterval(() => {
                 if (currentChat && currentChatType) {
                     checkForNewMessages();
@@ -1246,43 +1278,50 @@
             }
         }
 
-        function checkForNewMessages() {
+        async function checkForNewMessages() {
             if (!currentChat || !currentChatType) return;
-            
-            // Reload data from localStorage to get latest messages
-            const freshConversations = JSON.parse(localStorage.getItem('chatapp_conversations') || '{}');
-            const freshGroups = JSON.parse(localStorage.getItem('chatapp_groups') || '{}');
-            
-            // Update our local data
-            conversations = freshConversations;
-            groups = freshGroups;
             
             let messages = [];
             
             if (currentChatType === 'dm') {
                 const convKey = [currentUser.username, currentChat].sort().join('_');
-                messages = conversations[convKey] || [];
+                const { data: conv } = await supabase
+                    .from('conversations')
+                    .select('messages')
+                    .eq('id', convKey)
+                    .single();
+                
+                messages = conv?.messages || [];
             } else if (currentChatType === 'group') {
-                messages = groups[currentChat]?.messages || [];
+                const { data: group } = await supabase
+                    .from('groups')
+                    .select('messages')
+                    .eq('id', currentChat)
+                    .single();
+                
+                messages = group?.messages || [];
             }
 
             if (messages.length !== lastMessageCount) {
-                // New message detected
                 if (messages.length > lastMessageCount && lastMessageCount > 0) {
                     const newMessage = messages[messages.length - 1];
                     if (newMessage.from !== currentUser.username && currentUser.notificationsEnabled) {
-                        showNotification(`New message from ${users[newMessage.from].fullName}`, 'success');
+                        const { data: sender } = await supabase
+                            .from('users')
+                            .select('full_name')
+                            .eq('username', newMessage.from)
+                            .single();
+                        
+                        showNotification(`New message from ${sender?.full_name || newMessage.from}`, 'success');
                     }
                 }
                 lastMessageCount = messages.length;
                 
-                // Scroll to bottom before loading messages
                 const container = document.getElementById('messagesContainer');
                 const shouldScroll = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
                 
-                loadMessages();
+                await loadMessages();
                 
-                // Auto-scroll to bottom if user was already at bottom
                 if (shouldScroll) {
                     setTimeout(() => {
                         container.scrollTop = container.scrollHeight;
@@ -1291,44 +1330,61 @@
             }
         }
 
-        function checkBans() {
+        async function checkBans() {
             const now = Date.now();
-            let updated = false;
             
-            for (let username in adminActions) {
-                const action = adminActions[username];
-                if (action.type === 'temporary_ban' && action.expiresAt <= now) {
-                    delete adminActions[username];
-                    updated = true;
+            const { data: actions } = await supabase
+                .from('admin_actions')
+                .select('*')
+                .eq('action_type', 'temporary_ban')
+                .lt('expires_at', now);
+            
+            if (actions && actions.length > 0) {
+                for (const action of actions) {
+                    await supabase
+                        .from('admin_actions')
+                        .delete()
+                        .eq('username', action.username);
                 }
-            }
-            
-            if (updated) {
-                saveData();
             }
         }
 
-        // Broadcast Functions
-        function displayBroadcast() {
+        async function displayBroadcast() {
             const banner = document.getElementById('broadcastBanner');
             const appContainer = document.getElementById('appContainer');
             
-            if (broadcastMessage && broadcastMessage.expiresAt > Date.now()) {
-                banner.textContent = broadcastMessage.message;
+            const { data: broadcast } = await supabase
+                .from('broadcasts')
+                .select('*')
+                .eq('active', true)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+            
+            if (broadcast && broadcast.expires_at > Date.now()) {
+                broadcastMessage = {
+                    message: broadcast.message,
+                    expiresAt: broadcast.expires_at,
+                    timestamp: broadcast.timestamp
+                };
+                banner.textContent = broadcast.message;
                 banner.style.display = 'block';
                 appContainer.classList.add('has-broadcast');
             } else {
                 banner.style.display = 'none';
                 appContainer.classList.remove('has-broadcast');
-                if (broadcastMessage && broadcastMessage.expiresAt <= Date.now()) {
-                    broadcastMessage = null;
-                    saveData();
+                
+                if (broadcast && broadcast.expires_at <= Date.now()) {
+                    await supabase
+                        .from('broadcasts')
+                        .update({ active: false })
+                        .eq('id', broadcast.id);
                 }
             }
         }
 
         // Friends Functions
-        function loadFriendsList() {
+        async function loadFriendsList() {
             const friendsList = document.getElementById('friendsList');
             friendsList.innerHTML = '';
 
@@ -1337,24 +1393,29 @@
                 return;
             }
 
-            currentUser.friends.forEach(friendUsername => {
-                const friend = users[friendUsername];
+            for (const friendUsername of currentUser.friends) {
+                const { data: friend } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('username', friendUsername)
+                    .single();
+                
                 if (friend) {
                     const item = document.createElement('div');
                     item.className = 'friend-item';
                     item.onclick = () => openDirectMessage(friendUsername);
                     
-                    const avatar = friend.profileImage 
-                        ? `<img src="${friend.profileImage}" style="width: 10px; height: 10px; border-radius: 50%; margin-right: 12px; object-fit: cover; border: 2px solid var(--bg-secondary);">`
+                    const avatar = friend.profile_image 
+                        ? `<img src="${friend.profile_image}" style="width: 10px; height: 10px; border-radius: 50%; margin-right: 12px; object-fit: cover; border: 2px solid var(--bg-secondary);">`
                         : '<div class="status"></div>';
                     
                     item.innerHTML = `
                         ${avatar}
-                        <span>${friend.fullName}</span>
+                        <span>${friend.full_name}</span>
                     `;
                     friendsList.appendChild(item);
                 }
-            });
+            }
         }
 
         function openAddFriendModal() {
@@ -1372,7 +1433,7 @@
             document.getElementById('modalOverlay').style.display = 'flex';
         }
 
-        function sendFriendRequest() {
+        async function sendFriendRequest() {
             const username = document.getElementById('friendUsername').value.trim().toLowerCase();
             
             if (!username) {
@@ -1385,7 +1446,13 @@
                 return;
             }
 
-            if (!users[username]) {
+            const { data: user } = await supabase
+                .from('users')
+                .select('username')
+                .eq('username', username)
+                .single();
+
+            if (!user) {
                 showNotification('User not found', 'error');
                 return;
             }
@@ -1395,52 +1462,70 @@
                 return;
             }
 
-            if (!friendRequests[username]) {
-                friendRequests[username] = [];
-            }
+            const { data: existing } = await supabase
+                .from('friend_requests')
+                .select('*')
+                .eq('to_username', username)
+                .eq('from_username', currentUser.username)
+                .single();
 
-            if (friendRequests[username].find(req => req.from === currentUser.username)) {
+            if (existing) {
                 showNotification('Friend request already sent', 'error');
                 return;
             }
 
-            friendRequests[username].push({
-                from: currentUser.username,
-                timestamp: Date.now()
-            });
+            const { error } = await supabase
+                .from('friend_requests')
+                .insert([{
+                    to_username: username,
+                    from_username: currentUser.username,
+                    timestamp: Date.now()
+                }]);
 
-            saveData();
+            if (error) {
+                showNotification('Error sending friend request', 'error');
+                return;
+            }
+
             closeModal();
             showNotification('Friend request sent!', 'success');
         }
 
-        function openFriendRequestsModal() {
-            const requests = friendRequests[currentUser.username] || [];
+        async function openFriendRequestsModal() {
+            const { data: requests } = await supabase
+                .from('friend_requests')
+                .select('*')
+                .eq('to_username', currentUser.username);
             
             document.getElementById('modalTitle').textContent = 'Friend Requests';
             
-            if (requests.length === 0) {
+            if (!requests || requests.length === 0) {
                 document.getElementById('modalContent').innerHTML = '<p style="color: var(--text-muted);">No pending friend requests</p>';
             } else {
                 let html = '';
-                requests.forEach((req, index) => {
-                    const fromUser = users[req.from];
+                for (const req of requests) {
+                    const { data: fromUser } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('username', req.from_username)
+                        .single();
+                    
                     html += `
                         <div class="friend-request-item">
                             <div class="friend-request-info">
-                                <div class="member-avatar">${fromUser.fullName[0].toUpperCase()}</div>
+                                <div class="member-avatar">${fromUser.full_name[0].toUpperCase()}</div>
                                 <div>
-                                    <div style="font-weight: 600;">${fromUser.fullName}</div>
+                                    <div style="font-weight: 600;">${fromUser.full_name}</div>
                                     <div style="font-size: 13px; color: var(--text-muted);">@${fromUser.username}</div>
                                 </div>
                             </div>
                             <div class="friend-request-actions">
-                                <button class="btn-primary small-btn" onclick="acceptFriendRequest('${req.from}')">Accept</button>
-                                <button class="btn-danger small-btn" onclick="rejectFriendRequest('${req.from}')">Decline</button>
+                                <button class="btn-primary small-btn" onclick="acceptFriendRequest('${req.from_username}')">Accept</button>
+                                <button class="btn-danger small-btn" onclick="rejectFriendRequest('${req.from_username}')">Decline</button>
                             </div>
                         </div>
                     `;
-                });
+                }
                 document.getElementById('modalContent').innerHTML = html;
             }
             
@@ -1450,61 +1535,88 @@
             document.getElementById('modalOverlay').style.display = 'flex';
         }
 
-        function acceptFriendRequest(fromUsername) {
+        async function acceptFriendRequest(fromUsername) {
             if (!currentUser.friends.includes(fromUsername)) {
                 currentUser.friends.push(fromUsername);
+                await supabase
+                    .from('users')
+                    .update({ friends: currentUser.friends })
+                    .eq('username', currentUser.username);
             }
-            if (!users[fromUsername].friends.includes(currentUser.username)) {
-                users[fromUsername].friends.push(currentUser.username);
+            
+            const { data: otherUser } = await supabase
+                .from('users')
+                .select('friends')
+                .eq('username', fromUsername)
+                .single();
+            
+            const otherFriends = otherUser.friends || [];
+            if (!otherFriends.includes(currentUser.username)) {
+                otherFriends.push(currentUser.username);
+                await supabase
+                    .from('users')
+                    .update({ friends: otherFriends })
+                    .eq('username', fromUsername);
             }
 
-            friendRequests[currentUser.username] = friendRequests[currentUser.username].filter(
-                req => req.from !== fromUsername
-            );
+            await supabase
+                .from('friend_requests')
+                .delete()
+                .eq('to_username', currentUser.username)
+                .eq('from_username', fromUsername);
 
-            saveData();
-            loadFriendsList();
-            updatePendingCount();
-            openFriendRequestsModal();
+            await loadFriendsList();
+            await updatePendingCount();
+            await openFriendRequestsModal();
             showNotification('Friend request accepted!', 'success');
         }
 
-        function rejectFriendRequest(fromUsername) {
-            friendRequests[currentUser.username] = friendRequests[currentUser.username].filter(
-                req => req.from !== fromUsername
-            );
+        async function rejectFriendRequest(fromUsername) {
+            await supabase
+                .from('friend_requests')
+                .delete()
+                .eq('to_username', currentUser.username)
+                .eq('from_username', fromUsername);
 
-            saveData();
-            updatePendingCount();
-            openFriendRequestsModal();
+            await updatePendingCount();
+            await openFriendRequestsModal();
             showNotification('Friend request declined', 'success');
         }
 
-        function updatePendingCount() {
-            const requests = friendRequests[currentUser.username] || [];
-            const countEl = document.getElementById('pendingCount');
+        async function updatePendingCount() {
+            const { data: requests } = await supabase
+                .from('friend_requests')
+                .select('*')
+                .eq('to_username', currentUser.username);
             
-            if (requests.length > 0) {
-                countEl.textContent = requests.length;
+            const countEl = document.getElementById('pendingCount');
+            const count = requests?.length || 0;
+            
+            if (count > 0) {
+                countEl.textContent = count;
                 countEl.style.display = 'inline-block';
             } else {
                 countEl.style.display = 'none';
             }
         }
 
-        function openDirectMessage(friendUsername) {
+        async function openDirectMessage(friendUsername) {
             currentChat = friendUsername;
             currentChatType = 'dm';
             
-            const friend = users[friendUsername];
-            document.getElementById('chatTitle').textContent = friend.fullName;
+            const { data: friend } = await supabase
+                .from('users')
+                .select('*')
+                .eq('username', friendUsername)
+                .single();
+            
+            document.getElementById('chatTitle').textContent = friend.full_name;
             document.getElementById('messageInputContainer').style.display = 'block';
             document.getElementById('memberList').style.display = 'none';
             document.getElementById('groupSettingsBtn').style.display = 'none';
             document.getElementById('channelListContent').classList.remove('hidden');
             document.getElementById('groupChannelContent').classList.add('hidden');
             
-            // Highlight active friend
             document.querySelectorAll('.friend-item').forEach(item => {
                 item.classList.remove('active');
             });
@@ -1514,10 +1626,10 @@
             }
             
             lastMessageCount = 0;
-            loadMessages();
+            await loadMessages();
         }
 
-        function loadMessages() {
+        async function loadMessages() {
             const container = document.getElementById('messagesContainer');
             container.innerHTML = '';
 
@@ -1525,9 +1637,21 @@
             
             if (currentChatType === 'dm') {
                 const convKey = [currentUser.username, currentChat].sort().join('_');
-                messages = conversations[convKey] || [];
+                const { data: conv } = await supabase
+                    .from('conversations')
+                    .select('messages')
+                    .eq('id', convKey)
+                    .single();
+                
+                messages = conv?.messages || [];
             } else if (currentChatType === 'group') {
-                messages = groups[currentChat].messages || [];
+                const { data: group } = await supabase
+                    .from('groups')
+                    .select('messages')
+                    .eq('id', currentChat)
+                    .single();
+                
+                messages = group?.messages || [];
             }
 
             if (messages.length === 0) {
@@ -1535,27 +1659,32 @@
                 return;
             }
 
-            messages.forEach(msg => {
-                const sender = users[msg.from];
+            for (const msg of messages) {
+                const { data: sender } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('username', msg.from)
+                    .single();
+                
                 const messageEl = document.createElement('div');
                 messageEl.className = 'message';
                 
-                const avatarContent = sender.profileImage
-                    ? `<img src="${sender.profileImage}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">`
-                    : sender.fullName[0].toUpperCase();
+                const avatarContent = sender.profile_image
+                    ? `<img src="${sender.profile_image}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">`
+                    : sender.full_name[0].toUpperCase();
                 
                 messageEl.innerHTML = `
                     <div class="message-avatar">${avatarContent}</div>
                     <div class="message-content">
                         <div class="message-header">
-                            <span class="message-author">${sender.fullName}</span>
+                            <span class="message-author">${sender.full_name}</span>
                             <span class="message-timestamp">${formatTime(msg.timestamp)}</span>
                         </div>
                         <div class="message-text">${escapeHtml(msg.text)}</div>
                     </div>
                 `;
                 container.appendChild(messageEl);
-            });
+            }
 
             container.scrollTop = container.scrollHeight;
         }
@@ -1567,7 +1696,7 @@
             }
         }
 
-        function sendMessage() {
+        async function sendMessage() {
             const input = document.getElementById('messageInput');
             const text = input.value.trim();
 
@@ -1581,57 +1710,95 @@
 
             if (currentChatType === 'dm') {
                 const convKey = [currentUser.username, currentChat].sort().join('_');
-                if (!conversations[convKey]) {
-                    conversations[convKey] = [];
+                
+                let { data: conv } = await supabase
+                    .from('conversations')
+                    .select('messages')
+                    .eq('id', convKey)
+                    .single();
+                
+                const messages = conv?.messages || [];
+                messages.push(message);
+                
+                if (conv) {
+                    await supabase
+                        .from('conversations')
+                        .update({ messages, updated_at: new Date().toISOString() })
+                        .eq('id', convKey);
+                } else {
+                    await supabase
+                        .from('conversations')
+                        .insert([{
+                            id: convKey,
+                            participants: [currentUser.username, currentChat],
+                            messages: messages
+                        }]);
                 }
-                conversations[convKey].push(message);
             } else if (currentChatType === 'group') {
-                if (!groups[currentChat].messages) {
-                    groups[currentChat].messages = [];
-                }
-                groups[currentChat].messages.push(message);
+                const { data: group } = await supabase
+                    .from('groups')
+                    .select('messages')
+                    .eq('id', currentChat)
+                    .single();
+                
+                const messages = group?.messages || [];
+                messages.push(message);
+                
+                await supabase
+                    .from('groups')
+                    .update({ messages })
+                    .eq('id', currentChat);
             }
 
-            saveData();
             input.value = '';
             input.style.height = 'auto';
             lastMessageCount++;
-            loadMessages();
+            await loadMessages();
         }
 
         // Group Functions
-        function loadGroupServers() {
+        async function loadGroupServers() {
             const container = document.getElementById('groupServerList');
             container.innerHTML = '';
 
-            for (let groupId in groups) {
-                const group = groups[groupId];
-                if (group.members.includes(currentUser.username)) {
-                    const icon = document.createElement('div');
-                    icon.className = 'server-icon';
-                    icon.title = group.name;
-                    icon.textContent = group.name[0].toUpperCase();
-                    icon.onclick = () => openGroup(groupId);
-                    container.appendChild(icon);
+            const { data: allGroups } = await supabase
+                .from('groups')
+                .select('*');
+
+            if (allGroups) {
+                for (const group of allGroups) {
+                    if (group.members.includes(currentUser.username)) {
+                        const icon = document.createElement('div');
+                        icon.className = 'server-icon';
+                        icon.title = group.name;
+                        icon.textContent = group.name[0].toUpperCase();
+                        icon.onclick = () => openGroup(group.id);
+                        container.appendChild(icon);
+                    }
                 }
             }
         }
 
-        function openCreateGroupModal() {
+        async function openCreateGroupModal() {
             document.getElementById('modalTitle').textContent = 'Create Group';
             
             let friendsHtml = '';
-            currentUser.friends.forEach(friendUsername => {
-                const friend = users[friendUsername];
+            for (const friendUsername of currentUser.friends) {
+                const { data: friend } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('username', friendUsername)
+                    .single();
+                
                 friendsHtml += `
                     <div style="margin-bottom: 8px;">
                         <label style="display: flex; align-items: center; cursor: pointer;">
                             <input type="checkbox" value="${friend.username}" style="margin-right: 12px;">
-                            <span>${friend.fullName}</span>
+                            <span>${friend.full_name}</span>
                         </label>
                     </div>
                 `;
-            });
+            }
 
             document.getElementById('modalContent').innerHTML = `
                 <div class="input-group">
@@ -1654,7 +1821,7 @@
             document.getElementById('modalOverlay').style.display = 'flex';
         }
 
-        function createGroup() {
+        async function createGroup() {
             const groupName = document.getElementById('groupName').value.trim();
             const checkboxes = document.querySelectorAll('#friendCheckboxes input[type="checkbox"]:checked');
             
@@ -1677,25 +1844,37 @@
             checkboxes.forEach(cb => members.push(cb.value));
 
             const groupId = 'group_' + Date.now();
-            groups[groupId] = {
-                id: groupId,
-                name: groupName,
-                creator: currentUser.username,
-                members: members,
-                messages: [],
-                createdAt: Date.now()
-            };
+            
+            const { error } = await supabase
+                .from('groups')
+                .insert([{
+                    id: groupId,
+                    name: groupName,
+                    creator: currentUser.username,
+                    members: members,
+                    messages: [],
+                    created_at: Date.now()
+                }]);
 
-            saveData();
+            if (error) {
+                showNotification('Error creating group', 'error');
+                return;
+            }
+
             closeModal();
-            loadGroupServers();
+            await loadGroupServers();
             showNotification('Group created successfully!', 'success');
         }
 
-        function openGroup(groupId) {
+        async function openGroup(groupId) {
             currentChat = groupId;
             currentChatType = 'group';
-            const group = groups[groupId];
+            
+            const { data: group } = await supabase
+                .from('groups')
+                .select('*')
+                .eq('id', groupId)
+                .single();
 
             document.getElementById('chatTitle').textContent = group.name;
             document.getElementById('messageInputContainer').style.display = 'block';
@@ -1704,7 +1883,6 @@
             document.getElementById('channelListContent').classList.add('hidden');
             document.getElementById('groupChannelContent').classList.remove('hidden');
 
-            // Update server icons
             document.querySelectorAll('.sidebar .server-icon').forEach(icon => {
                 icon.classList.remove('active');
             });
@@ -1714,27 +1892,32 @@
             }
 
             lastMessageCount = 0;
-            loadMessages();
-            loadGroupMembers(group);
+            await loadMessages();
+            await loadGroupMembers(group);
         }
 
-        function selectGroupChannel() {
-            loadMessages();
+        async function selectGroupChannel() {
+            await loadMessages();
         }
 
-        function loadGroupMembers(group) {
+        async function loadGroupMembers(group) {
             const memberList = document.getElementById('memberList');
             
             let html = '<div class="member-category">';
             html += '<div class="member-category-header">Members — ' + group.members.length + '</div>';
             
-            group.members.forEach(memberUsername => {
-                const member = users[memberUsername];
+            for (const memberUsername of group.members) {
+                const { data: member } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('username', memberUsername)
+                    .single();
+                
                 const isCreator = memberUsername === group.creator;
                 
-                const avatarContent = member.profileImage
-                    ? `<img src="${member.profileImage}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">`
-                    : member.fullName[0].toUpperCase();
+                const avatarContent = member.profile_image
+                    ? `<img src="${member.profile_image}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">`
+                    : member.full_name[0].toUpperCase();
                 
                 html += `
                     <div class="member-item">
@@ -1743,25 +1926,34 @@
                             <div class="status"></div>
                         </div>
                         <div>
-                            <div style="font-weight: 500;">${member.fullName}</div>
+                            <div style="font-weight: 500;">${member.full_name}</div>
                             ${isCreator ? '<div style="font-size: 11px; color: var(--accent);">Creator</div>' : ''}
                         </div>
                     </div>
                 `;
-            });
+            }
             
             html += '</div>';
             memberList.innerHTML = html;
         }
 
-        function openGroupSettings() {
-            const group = groups[currentChat];
+        async function openGroupSettings() {
+            const { data: group } = await supabase
+                .from('groups')
+                .select('*')
+                .eq('id', currentChat)
+                .single();
             
             document.getElementById('modalTitle').textContent = 'Group Settings';
             
             let membersHtml = '';
-            group.members.forEach(memberUsername => {
-                const member = users[memberUsername];
+            for (const memberUsername of group.members) {
+                const { data: member } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('username', memberUsername)
+                    .single();
+                
                 const isCreator = memberUsername === group.creator;
                 const canRemove = currentUser.username === group.creator && memberUsername !== currentUser.username;
                 
@@ -1769,10 +1961,10 @@
                     <div class="user-list-item">
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <div class="member-avatar" style="width: 32px; height: 32px; font-size: 14px;">
-                                ${member.fullName[0].toUpperCase()}
+                                ${member.full_name[0].toUpperCase()}
                             </div>
                             <div>
-                                <div style="font-weight: 500;">${member.fullName}</div>
+                                <div style="font-weight: 500;">${member.full_name}</div>
                                 <div style="font-size: 13px; color: var(--text-muted);">@${member.username}</div>
                             </div>
                             ${isCreator ? '<span class="group-indicator">Creator</span>' : ''}
@@ -1780,7 +1972,7 @@
                         ${canRemove ? `<button class="btn-danger small-btn" onclick="removeGroupMember('${memberUsername}')">Remove</button>` : ''}
                     </div>
                 `;
-            });
+            }
 
             document.getElementById('modalContent').innerHTML = `
                 <div class="admin-section">
@@ -1813,21 +2005,30 @@
             document.getElementById('modalOverlay').style.display = 'flex';
         }
 
-        function openAddGroupMemberModal() {
-            const group = groups[currentChat];
+        async function openAddGroupMemberModal() {
+            const { data: group } = await supabase
+                .from('groups')
+                .select('*')
+                .eq('id', currentChat)
+                .single();
             
             let friendsHtml = '';
-            currentUser.friends.forEach(friendUsername => {
+            for (const friendUsername of currentUser.friends) {
                 if (!group.members.includes(friendUsername)) {
-                    const friend = users[friendUsername];
+                    const { data: friend } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('username', friendUsername)
+                        .single();
+                    
                     friendsHtml += `
                         <div class="user-list-item" style="cursor: pointer;" onclick="addGroupMember('${friendUsername}')">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <div class="member-avatar" style="width: 32px; height: 32px; font-size: 14px;">
-                                    ${friend.fullName[0].toUpperCase()}
+                                    ${friend.full_name[0].toUpperCase()}
                                 </div>
                                 <div>
-                                    <div style="font-weight: 500;">${friend.fullName}</div>
+                                    <div style="font-weight: 500;">${friend.full_name}</div>
                                     <div style="font-size: 13px; color: var(--text-muted);">@${friend.username}</div>
                                 </div>
                             </div>
@@ -1835,7 +2036,7 @@
                         </div>
                     `;
                 }
-            });
+            }
 
             document.getElementById('modalTitle').textContent = 'Add Member';
             document.getElementById('modalContent').innerHTML = friendsHtml || '<p style="color: var(--text-muted);">No available friends to add</p>';
@@ -1845,8 +2046,12 @@
             document.getElementById('modalOverlay').style.display = 'flex';
         }
 
-        function addGroupMember(username) {
-            const group = groups[currentChat];
+        async function addGroupMember(username) {
+            const { data: group } = await supabase
+                .from('groups')
+                .select('*')
+                .eq('id', currentChat)
+                .single();
             
             if (group.members.length >= 5) {
                 showNotification('Group is full (max 5 members)', 'error');
@@ -1854,44 +2059,74 @@
             }
 
             group.members.push(username);
-            saveData();
+            
+            await supabase
+                .from('groups')
+                .update({ members: group.members })
+                .eq('id', currentChat);
+
             showNotification('Member added successfully!', 'success');
-            loadGroupMembers(group);
-            openGroupSettings();
+            await loadGroupMembers(group);
+            await openGroupSettings();
         }
 
-        function removeGroupMember(username) {
-            const group = groups[currentChat];
+        async function removeGroupMember(username) {
+            const { data: group } = await supabase
+                .from('groups')
+                .select('*')
+                .eq('id', currentChat)
+                .single();
+            
             group.members = group.members.filter(m => m !== username);
-            saveData();
+            
+            await supabase
+                .from('groups')
+                .update({ members: group.members })
+                .eq('id', currentChat);
+
             showNotification('Member removed', 'success');
-            loadGroupMembers(group);
-            openGroupSettings();
+            await loadGroupMembers(group);
+            await openGroupSettings();
         }
 
-        function leaveGroup() {
+        async function leaveGroup() {
             if (confirm('Are you sure you want to leave this group?')) {
-                const group = groups[currentChat];
+                const { data: group } = await supabase
+                    .from('groups')
+                    .select('*')
+                    .eq('id', currentChat)
+                    .single();
+                
                 group.members = group.members.filter(m => m !== currentUser.username);
                 
                 if (group.members.length === 0) {
-                    delete groups[currentChat];
+                    await supabase
+                        .from('groups')
+                        .delete()
+                        .eq('id', currentChat);
+                } else {
+                    await supabase
+                        .from('groups')
+                        .update({ members: group.members })
+                        .eq('id', currentChat);
                 }
                 
-                saveData();
                 closeModal();
-                loadGroupServers();
+                await loadGroupServers();
                 showFriendsView();
                 showNotification('You left the group', 'success');
             }
         }
 
-        function deleteGroup() {
+        async function deleteGroup() {
             if (confirm('Are you sure you want to delete this group? This cannot be undone!')) {
-                delete groups[currentChat];
-                saveData();
+                await supabase
+                    .from('groups')
+                    .delete()
+                    .eq('id', currentChat);
+
                 closeModal();
-                loadGroupServers();
+                await loadGroupServers();
                 showFriendsView();
                 showNotification('Group deleted', 'success');
             }
@@ -1916,7 +2151,6 @@
                 </div>
             `;
 
-            // Update server icons
             document.querySelectorAll('.sidebar .server-icon').forEach(icon => {
                 icon.classList.remove('active');
             });
@@ -2004,7 +2238,6 @@
                 const uploadBtn = document.querySelector('.image-upload-btn');
                 uploadBtn.textContent = '📷 Change Profile Picture';
                 
-                // Add remove button if it doesn't exist
                 if (!document.querySelector('.btn-danger[onclick="removeProfileImage()"]')) {
                     const removeBtn = document.createElement('button');
                     removeBtn.className = 'btn-danger';
@@ -2029,7 +2262,7 @@
             if (removeBtn) removeBtn.remove();
         }
 
-        function saveSettings() {
+        async function saveSettings() {
             const newFullName = document.getElementById('settingsFullName').value.trim();
             const notificationsEnabled = document.getElementById('notificationsToggle').checked;
             
@@ -2038,27 +2271,32 @@
                 return;
             }
 
-            // Get profile image
             const imgElement = document.querySelector('.profile-image-preview');
             let profileImage = null;
             if (imgElement.tagName === 'IMG') {
                 profileImage = imgElement.src;
             }
 
-            // Update user data
             currentUser.fullName = newFullName;
             currentUser.profileImage = profileImage;
             currentUser.notificationsEnabled = notificationsEnabled;
-            users[currentUser.username] = currentUser;
+            
+            await supabase
+                .from('users')
+                .update({
+                    full_name: newFullName,
+                    profile_image: profileImage,
+                    notifications_enabled: notificationsEnabled
+                })
+                .eq('username', currentUser.username);
 
-            saveData();
             closeModal();
-            loadFriendsList();
+            await loadFriendsList();
             showNotification('Settings saved successfully!', 'success');
         }
 
         // Admin Functions
-        function openAdminPanel() {
+        async function openAdminPanel() {
             if (!currentUser.isAdmin) {
                 showNotification('Access denied', 'error');
                 return;
@@ -2066,42 +2304,49 @@
 
             document.getElementById('modalTitle').textContent = 'Admin Panel';
             
+            const { data: allUsers } = await supabase
+                .from('users')
+                .select('*')
+                .neq('username', 'siddbanik');
+            
             let usersHtml = '';
-            for (let username in users) {
-                if (username !== 'siddbanik') {
-                    const user = users[username];
-                    const action = adminActions[username];
-                    let statusText = '';
-                    
-                    if (action) {
-                        if (action.type === 'permanent_ban') {
-                            statusText = '<span style="color: var(--danger); font-size: 12px;">Permanently Banned</span>';
-                        } else if (action.type === 'temporary_ban') {
-                            const remaining = Math.ceil((action.expiresAt - Date.now()) / 60000);
-                            if (remaining > 0) {
-                                statusText = `<span style="color: var(--warning); font-size: 12px;">Banned (${remaining}m left)</span>`;
-                            }
-                        } else if (action.type === 'warning') {
-                            statusText = '<span style="color: var(--warning); font-size: 12px;">Warned</span>';
+            for (const user of allUsers || []) {
+                const { data: action } = await supabase
+                    .from('admin_actions')
+                    .select('*')
+                    .eq('username', user.username)
+                    .single();
+                
+                let statusText = '';
+                
+                if (action) {
+                    if (action.action_type === 'permanent_ban') {
+                        statusText = '<span style="color: var(--danger); font-size: 12px;">Permanently Banned</span>';
+                    } else if (action.action_type === 'temporary_ban') {
+                        const remaining = Math.ceil((action.expires_at - Date.now()) / 60000);
+                        if (remaining > 0) {
+                            statusText = `<span style="color: var(--warning); font-size: 12px;">Banned (${remaining}m left)</span>`;
                         }
+                    } else if (action.action_type === 'warning') {
+                        statusText = '<span style="color: var(--warning); font-size: 12px;">Warned</span>';
                     }
-                    
-                    usersHtml += `
-                        <div class="user-list-item">
-                            <div>
-                                <div style="font-weight: 500;">${user.fullName}</div>
-                                <div style="font-size: 13px; color: var(--text-muted);">@${username}</div>
-                                ${statusText}
-                            </div>
-                            <div class="ban-controls">
-                                <button class="btn-primary small-btn" onclick="warnUser('${username}')">Warn</button>
-                                <button class="btn-danger small-btn" onclick="openTempBanModal('${username}')">Temp Ban</button>
-                                <button class="btn-danger small-btn" onclick="permanentBanUser('${username}')">Perm Ban</button>
-                                ${action ? `<button class="btn-secondary small-btn" onclick="unbanUser('${username}')">Unban</button>` : ''}
-                            </div>
-                        </div>
-                    `;
                 }
+                
+                usersHtml += `
+                    <div class="user-list-item">
+                        <div>
+                            <div style="font-weight: 500;">${user.full_name}</div>
+                            <div style="font-size: 13px; color: var(--text-muted);">@${user.username}</div>
+                            ${statusText}
+                        </div>
+                        <div class="ban-controls">
+                            <button class="btn-primary small-btn" onclick="warnUser('${user.username}')">Warn</button>
+                            <button class="btn-danger small-btn" onclick="openTempBanModal('${user.username}')">Temp Ban</button>
+                            <button class="btn-danger small-btn" onclick="permanentBanUser('${user.username}')">Perm Ban</button>
+                            ${action ? `<button class="btn-secondary small-btn" onclick="unbanUser('${user.username}')">Unban</button>` : ''}
+                        </div>
+                    </div>
+                `;
             }
 
             document.getElementById('modalContent').innerHTML = `
@@ -2117,6 +2362,63 @@
                             <option value="3600000">1 Hour</option>
                             <option value="21600000">6 Hours</option>
                             <option value="86400000">1 Day</option>
+                            <option value="259200000">3 Days</option>
+                            <option value="604800000">1 Week</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" onclick="setBroadcast()">Set Broadcast</button>
+                    ${broadcastMessage ? '<button class="btn-danger" onclick="clearBroadcast()">Clear Broadcast</button>' : ''}
+                </div>
+                <div class="admin-section">
+                    <h3>User Management</h3>
+                    ${usersHtml}
+                </div>
+            `;
+
+            document.getElementById('modalFooter').innerHTML = `
+                <button class="btn-secondary" onclick="closeModal()">Close</button>
+            `;
+            
+            document.getElementById('modalOverlay').style.display = 'flex';
+        }
+
+        async function warnUser(username) {
+            await supabase
+                .from('admin_actions')
+                .upsert({
+                    username: username,
+                    action_type: 'warning',
+                    timestamp: Date.now()
+                });
+
+            const { data: user } = await supabase
+                .from('users')
+                .select('full_name')
+                .eq('username', username)
+                .single();
+
+            showNotification(`${user.full_name} has been warned`, 'success');
+            await openAdminPanel();
+        }
+
+        async function openTempBanModal(username) {
+            const { data: user } = await supabase
+                .from('users')
+                .select('*')
+                .eq('username', username)
+                .single();
+
+            document.getElementById('modalTitle').textContent = 'Temporary Ban';
+            document.getElementById('modalContent').innerHTML = `
+                <p>Ban <strong>${user.full_name}</strong> (@${username})</p>
+                <div class="select-group">
+                    <label>Duration</label>
+                    <select id="banDuration">
+                        <option value="3600000">1 Hour</option>
+                        <option value="10800000">3 Hours</option>
+                        <option value="21600000">6 Hours</option>
+                        <option value="43200000">12 Hours</option>
+                        <option value="86400000">1 Day</option>
                         <option value="259200000">3 Days</option>
                         <option value="604800000">1 Week</option>
                     </select>
@@ -2129,38 +2431,66 @@
             document.getElementById('modalOverlay').style.display = 'flex';
         }
 
-        function tempBanUser(username) {
+        async function tempBanUser(username) {
             const duration = parseInt(document.getElementById('banDuration').value);
-            adminActions[username] = {
-                type: 'temporary_ban',
-                expiresAt: Date.now() + duration,
-                timestamp: Date.now()
-            };
-            saveData();
-            showNotification(`${users[username].fullName} has been temporarily banned`, 'success');
-            openAdminPanel();
+            
+            await supabase
+                .from('admin_actions')
+                .upsert({
+                    username: username,
+                    action_type: 'temporary_ban',
+                    expires_at: Date.now() + duration,
+                    timestamp: Date.now()
+                });
+
+            const { data: user } = await supabase
+                .from('users')
+                .select('full_name')
+                .eq('username', username)
+                .single();
+
+            showNotification(`${user.full_name} has been temporarily banned`, 'success');
+            await openAdminPanel();
         }
 
-        function permanentBanUser(username) {
-            if (confirm(`Are you sure you want to permanently ban ${users[username].fullName}?`)) {
-                adminActions[username] = {
-                    type: 'permanent_ban',
-                    timestamp: Date.now()
-                };
-                saveData();
-                showNotification(`${users[username].fullName} has been permanently banned`, 'success');
-                openAdminPanel();
+        async function permanentBanUser(username) {
+            const { data: user } = await supabase
+                .from('users')
+                .select('full_name')
+                .eq('username', username)
+                .single();
+
+            if (confirm(`Are you sure you want to permanently ban ${user.full_name}?`)) {
+                await supabase
+                    .from('admin_actions')
+                    .upsert({
+                        username: username,
+                        action_type: 'permanent_ban',
+                        timestamp: Date.now()
+                    });
+
+                showNotification(`${user.full_name} has been permanently banned`, 'success');
+                await openAdminPanel();
             }
         }
 
-        function unbanUser(username) {
-            delete adminActions[username];
-            saveData();
-            showNotification(`${users[username].fullName} has been unbanned`, 'success');
-            openAdminPanel();
+        async function unbanUser(username) {
+            await supabase
+                .from('admin_actions')
+                .delete()
+                .eq('username', username);
+
+            const { data: user } = await supabase
+                .from('users')
+                .select('full_name')
+                .eq('username', username)
+                .single();
+
+            showNotification(`${user.full_name} has been unbanned`, 'success');
+            await openAdminPanel();
         }
 
-        function setBroadcast() {
+        async function setBroadcast() {
             const message = document.getElementById('broadcastText').value.trim();
             const duration = parseInt(document.getElementById('broadcastDuration').value);
             
@@ -2169,22 +2499,39 @@
                 return;
             }
 
+            await supabase
+                .from('broadcasts')
+                .update({ active: false })
+                .eq('active', true);
+
+            await supabase
+                .from('broadcasts')
+                .insert([{
+                    message: message,
+                    expires_at: Date.now() + duration,
+                    timestamp: Date.now(),
+                    active: true
+                }]);
+
             broadcastMessage = {
                 message: message,
                 expiresAt: Date.now() + duration,
                 timestamp: Date.now()
             };
 
-            saveData();
-            displayBroadcast();
+            await displayBroadcast();
             showNotification('Broadcast message set!', 'success');
             closeModal();
         }
 
-        function clearBroadcast() {
+        async function clearBroadcast() {
+            await supabase
+                .from('broadcasts')
+                .update({ active: false })
+                .eq('active', true);
+
             broadcastMessage = null;
-            saveData();
-            displayBroadcast();
+            await displayBroadcast();
             showNotification('Broadcast cleared', 'success');
             closeModal();
         }
@@ -2229,18 +2576,10 @@
             document.body.classList.toggle('light-mode');
             const icon = document.getElementById('themeIcon');
             icon.textContent = document.body.classList.contains('light-mode') ? '☀️' : '🌙';
-            localStorage.setItem('chatapp_theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
         }
 
         function toggleUserMenu() {
             // Could expand this for a dropdown menu
-        }
-
-        // Load saved theme
-        const savedTheme = localStorage.getItem('chatapp_theme');
-        if (savedTheme === 'light') {
-            document.body.classList.add('light-mode');
-            document.getElementById('themeIcon').textContent = '☀️';
         }
 
         // Initialize on load
@@ -2257,44 +2596,3 @@
     </script>
 </body>
 </html>
-                            <option value="604800000">1 Week</option>
-                        </select>
-                    </div>
-                    <button class="btn-primary" onclick="setBroadcast()">Set Broadcast</button>
-                    ${broadcastMessage ? '<button class="btn-danger" onclick="clearBroadcast()">Clear Broadcast</button>' : ''}
-                </div>
-                <div class="admin-section">
-                    <h3>User Management</h3>
-                    ${usersHtml}
-                </div>
-            `;
-
-            document.getElementById('modalFooter').innerHTML = `
-                <button class="btn-secondary" onclick="closeModal()">Close</button>
-            `;
-            
-            document.getElementById('modalOverlay').style.display = 'flex';
-        }
-
-        function warnUser(username) {
-            adminActions[username] = {
-                type: 'warning',
-                timestamp: Date.now()
-            };
-            saveData();
-            showNotification(`${users[username].fullName} has been warned`, 'success');
-            openAdminPanel();
-        }
-
-        function openTempBanModal(username) {
-            document.getElementById('modalTitle').textContent = 'Temporary Ban';
-            document.getElementById('modalContent').innerHTML = `
-                <p>Ban <strong>${users[username].fullName}</strong> (@${username})</p>
-                <div class="select-group">
-                    <label>Duration</label>
-                    <select id="banDuration">
-                        <option value="3600000">1 Hour</option>
-                        <option value="10800000">3 Hours</option>
-                        <option value="21600000">6 Hours</option>
-                        <option value="43200000">12 Hours</option>
-                        <option value="86400000">1 Day</option>
