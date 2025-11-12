@@ -451,6 +451,9 @@
         .message {
             display: flex;
             padding: 8px 0;
+        }
+
+        .message.slide-in {
             animation: messageSlide 0.3s ease;
         }
 
@@ -1452,12 +1455,14 @@
                         showNotification(`New message from ${sender?.full_name || newMessage.from}`, 'success');
                     }
                 }
+                
+                const previousCount = lastMessageCount;
                 lastMessageCount = messages.length;
                 
                 const container = document.getElementById('messagesContainer');
                 const shouldScroll = container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
                 
-                await loadMessages();
+                await loadMessages(false, previousCount);
                 
                 if (shouldScroll) {
                     setTimeout(() => {
@@ -1763,13 +1768,12 @@
             }
             
             lastMessageCount = 0;
-            await loadMessages();
+            await loadMessages(true);
         }
 
-        async function loadMessages() {
+        async function loadMessages(animate = false, previousCount = 0) {
             const container = document.getElementById('messagesContainer');
-            container.innerHTML = '';
-
+            
             let messages = [];
             
             if (currentChatType === 'dm') {
@@ -1796,31 +1800,65 @@
                 return;
             }
 
-            for (const msg of messages) {
-                const { data: sender } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('username', msg.from)
-                    .single();
-                
-                const messageEl = document.createElement('div');
-                messageEl.className = 'message';
-                
-                const avatarContent = sender.profile_image
-                    ? `<img src="${sender.profile_image}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">`
-                    : sender.full_name[0].toUpperCase();
-                
-                messageEl.innerHTML = `
-                    <div class="message-avatar">${avatarContent}</div>
-                    <div class="message-content">
-                        <div class="message-header">
-                            <span class="message-author">${sender.full_name}</span>
-                            <span class="message-timestamp">${formatTime(msg.timestamp)}</span>
+            // If we're just updating (not initial load), only add new messages
+            if (!animate && previousCount > 0 && messages.length > previousCount) {
+                const newMessages = messages.slice(previousCount);
+                for (const msg of newMessages) {
+                    const { data: sender } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('username', msg.from)
+                        .single();
+                    
+                    const messageEl = document.createElement('div');
+                    messageEl.className = 'message';
+                    
+                    const avatarContent = sender.profile_image
+                        ? `<img src="${sender.profile_image}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">`
+                        : sender.full_name[0].toUpperCase();
+                    
+                    messageEl.innerHTML = `
+                        <div class="message-avatar">${avatarContent}</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-author">${sender.full_name}</span>
+                                <span class="message-timestamp">${formatTime(msg.timestamp)}</span>
+                            </div>
+                            <div class="message-text">${escapeHtml(msg.text)}</div>
                         </div>
-                        <div class="message-text">${escapeHtml(msg.text)}</div>
-                    </div>
-                `;
-                container.appendChild(messageEl);
+                    `;
+                    container.appendChild(messageEl);
+                }
+            } else {
+                // Full reload - clear and rebuild all messages
+                container.innerHTML = '';
+                
+                for (const msg of messages) {
+                    const { data: sender } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('username', msg.from)
+                        .single();
+                    
+                    const messageEl = document.createElement('div');
+                    messageEl.className = animate ? 'message slide-in' : 'message';
+                    
+                    const avatarContent = sender.profile_image
+                        ? `<img src="${sender.profile_image}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">`
+                        : sender.full_name[0].toUpperCase();
+                    
+                    messageEl.innerHTML = `
+                        <div class="message-avatar">${avatarContent}</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-author">${sender.full_name}</span>
+                                <span class="message-timestamp">${formatTime(msg.timestamp)}</span>
+                            </div>
+                            <div class="message-text">${escapeHtml(msg.text)}</div>
+                        </div>
+                    `;
+                    container.appendChild(messageEl);
+                }
             }
 
             container.scrollTop = container.scrollHeight;
@@ -1890,7 +1928,28 @@
             input.value = '';
             input.style.height = 'auto';
             lastMessageCount++;
-            await loadMessages();
+            
+            // Add the new message directly without reloading everything
+            const container = document.getElementById('messagesContainer');
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            
+            const avatarContent = currentUser.profileImage
+                ? `<img src="${currentUser.profileImage}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">`
+                : currentUser.fullName[0].toUpperCase();
+            
+            messageEl.innerHTML = `
+                <div class="message-avatar">${avatarContent}</div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-author">${currentUser.fullName}</span>
+                        <span class="message-timestamp">Just now</span>
+                    </div>
+                    <div class="message-text">${escapeHtml(text)}</div>
+                </div>
+            `;
+            container.appendChild(messageEl);
+            container.scrollTop = container.scrollHeight;
         }
 
         // Group Functions
